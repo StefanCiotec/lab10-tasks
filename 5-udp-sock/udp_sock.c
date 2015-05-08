@@ -49,6 +49,8 @@ static struct socket *sock;	/* UDP server */
 static int my_udp_msgsend(struct socket *s)
 {
 	/* address to send to */
+	int err;
+
 	struct sockaddr_in raddr = {
 		.sin_family	= AF_INET,
 		.sin_port	= htons(MY_UDP_REMOTE_PORT),
@@ -62,10 +64,19 @@ static int my_udp_msgsend(struct socket *s)
 	int len = strlen(buffer) + 1;
 
 	/* TODO: build message */
+	iov.iov_base = buffer;
+	iov.iov_len = len;
 
+	msg.msg_name = (struct sockaddr *) &raddr;
+	msg.msg_namelen = raddrlen;
+	msg.msg_flags = 0;
+	msg.msg_control = NULL;
+        msg.msg_controllen = 0;
 	/* TODO: send the message down the socket */
-
+	err = kernel_sendmsg(sock, &msg, (struct kvec *) &iov, 1, 1);
 	/* TODO: return error code */
+	if (err < 0)
+		return err;
 	return 0;
 }
 
@@ -88,6 +99,11 @@ int __init my_udp_sock_init(void)
 	}
 
 	/* TODO: bind socket to loopback on port MY_UDP_LOCAL_PORT */
+	err = sock->ops->bind(sock, (struct sockaddr *) &addr, addrlen);
+	if (err < 0) {
+		printk(LOG_LEVEL "can't bind\n");
+		goto out_release;
+	}
 
 	/* send message */
 	err = my_udp_msgsend(sock);
@@ -100,6 +116,7 @@ int __init my_udp_sock_init(void)
 
 out_release:
 	/* TODO: cleanup socket */
+	sock_release(sock);
 out:
 	return err;
 }
